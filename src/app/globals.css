@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+}
+
+body {
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: box-shadow 0.15s;
+}
+.input:focus {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
