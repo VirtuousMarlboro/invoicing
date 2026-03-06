@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+import AppToast, { type ToastMessage } from "@/components/AppToast";
 
 interface DashboardData {
   totalInvoices: number;
@@ -17,13 +18,32 @@ interface DashboardData {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const pushToast = useCallback((toast: Omit<ToastMessage, "id">) => {
+    const id = Math.random().toString(36).slice(2, 9);
+    setToasts((prev) => [...prev, { id, ...toast }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   useEffect(() => {
     fetch("/api/dashboard")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
       .then(setData)
+      .catch(() => {
+        pushToast({ kind: "error", text: "Gagal memuat data dashboard." });
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [pushToast]);
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n);
@@ -31,14 +51,17 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen py-8 px-4 md:px-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
+          <div className="flex items-center gap-4 flex-wrap">
             <h1 className="text-2xl font-bold text-blue-600">Dashboard</h1>
             <Link href="/" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
               Buat Invoice
             </Link>
             <Link href="/history" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
               Riwayat
+            </Link>
+            <Link href="/manage" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
+              Manage
             </Link>
           </div>
           <ThemeToggle />
@@ -64,7 +87,8 @@ export default function DashboardPage() {
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
                   <h2 className="font-semibold text-gray-800 dark:text-gray-200">Ringkasan Bulanan</h2>
                 </div>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-slate-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       <th className="px-6 py-3">Bulan</th>
@@ -82,6 +106,7 @@ export default function DashboardPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
@@ -96,6 +121,7 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      <AppToast toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }

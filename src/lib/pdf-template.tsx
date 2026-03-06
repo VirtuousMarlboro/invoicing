@@ -26,8 +26,8 @@ const s = StyleSheet.create({
   // Header
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
   brandName: { fontSize: 22, fontWeight: "bold", color: blue },
-  invoiceTitle: { fontSize: 12, fontWeight: "bold", textAlign: "right", color: blue, marginBottom: 4 },
-  metaText: { fontSize: 9, color: gray, textAlign: "right" },
+  invoiceTitle: { fontSize: 12, fontWeight: "bold", color: blue, marginBottom: 4 },
+  metaText: { fontSize: 9, color: gray },
 
   // Parties
   partiesRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
@@ -78,27 +78,209 @@ const s = StyleSheet.create({
   paymentBlock: { marginTop: 24, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: "#e5e7eb" },
   paymentTitle: { fontSize: 9, fontWeight: "bold", color: blue, marginBottom: 4 },
   paymentText: { fontSize: 9, color: gray, lineHeight: 1.5 },
+
+  // Receipt mode
+  receiptCard: {
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 18,
+    backgroundColor: "#f8fbff",
+  },
+  receiptMetaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  receiptMetaItem: { width: "48%" },
+  receiptLabel: { fontSize: 8, color: gray, marginBottom: 2, textTransform: "uppercase", letterSpacing: 0.6 },
+  receiptValue: { fontSize: 10, fontWeight: "bold", color: "#1f2937" },
+  receiptSection: { marginTop: 10 },
+  receiptText: { fontSize: 9, color: "#374151", lineHeight: 1.5 },
+  receiptAmountBox: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#eff6ff",
+    alignItems: "center",
+  },
+  receiptAmountLabel: { fontSize: 8, color: gray, textTransform: "uppercase", letterSpacing: 1 },
+  receiptAmountValue: { fontSize: 18, fontWeight: "bold", color: blue, marginTop: 2 },
+  receiptDivider: { borderTopWidth: 0.5, borderTopColor: "#e5e7eb", marginTop: 12, paddingTop: 10 },
+
+  // Watermark
+  paidWatermarkText: {
+    position: "absolute",
+    top: "43%",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    fontSize: 56,
+    fontWeight: "bold",
+    color: "#16a34a",
+    opacity: 0.18,
+    transform: "rotate(-24deg)",
+    letterSpacing: 2,
+  },
+  paidWatermarkCircleWrap: {
+    position: "absolute",
+    top: "36%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  paidWatermarkCircle: {
+    width: 260,
+    height: 260,
+    borderWidth: 1,
+    borderColor: "#16a34a",
+    borderRadius: 130,
+    opacity: 0.16,
+    transform: "rotate(-24deg)",
+  },
 });
 
-export function InvoicePDF({ data }: { data: InvoiceData }) {
+export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode?: "invoice" | "receipt" }) {
+  const isReceipt = mode === "receipt";
   const totals = calcTotals(data.items, data.taxRate, data.discountPercent);
+  const paidStamp = data.status === "paid";
+
+  if (isReceipt) {
+    return (
+      <Document>
+        <Page size="A4" style={s.page}>
+          {paidStamp ? (
+            <>
+              <View style={s.paidWatermarkCircleWrap}>
+                <View style={s.paidWatermarkCircle} />
+              </View>
+              <Text style={s.paidWatermarkText}>LUNAS</Text>
+            </>
+          ) : null}
+
+          {/* Receipt header */}
+          <View style={s.headerRow}>
+            <View>
+              <Text style={s.invoiceTitle}>KWITANSI</Text>
+              <Text style={s.metaText}>No. Nota: {data.invoiceNumber}</Text>
+              <Text style={s.metaText}>Tanggal Nota: {data.invoiceDate}</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+              {data.senderLogo ? <Image src={data.senderLogo} style={s.logo} /> : null}
+              {data.senderBusiness ? <Text style={s.brandName}>{data.senderBusiness}</Text> : null}
+            </View>
+          </View>
+
+          {/* Receipt body */}
+          <View style={s.receiptCard}>
+            <View style={s.receiptMetaRow}>
+              <View style={s.receiptMetaItem}>
+                <Text style={s.receiptLabel}>Penerbit</Text>
+                <Text style={s.receiptValue}>{data.senderName || "-"}</Text>
+                {data.senderAddress ? <Text style={s.receiptText}>{data.senderAddress}</Text> : null}
+              </View>
+              <View style={s.receiptMetaItem}>
+                <Text style={s.receiptLabel}>Diterima Dari</Text>
+                <Text style={s.receiptValue}>{data.clientName || "-"}</Text>
+                {data.clientAddress ? <Text style={s.receiptText}>{data.clientAddress}</Text> : null}
+              </View>
+            </View>
+
+            <View style={s.receiptSection}>
+              <Text style={s.receiptLabel}>Untuk Pembayaran</Text>
+              {data.items.length === 0 ? (
+                <Text style={s.receiptText}>-</Text>
+              ) : (
+                data.items.map((item) => (
+                  <Text key={item.id} style={s.receiptText}>
+                    - {item.description || "Item"} ({item.quantity} x {formatCurrency(item.unitPrice)})
+                  </Text>
+                ))
+              )}
+            </View>
+
+            <View style={s.receiptAmountBox}>
+              <Text style={s.receiptAmountLabel}>Jumlah Diterima</Text>
+              <Text style={s.receiptAmountValue}>{formatCurrency(totals.grandTotal)}</Text>
+            </View>
+
+            <View style={s.receiptDivider}>
+              <View style={s.totalsRow}>
+                <Text style={s.totalsLabel}>Subtotal</Text>
+                <Text style={s.totalsValue}>{formatCurrency(totals.subtotal)}</Text>
+              </View>
+              {data.discountPercent > 0 && (
+                <View style={s.totalsRow}>
+                  <Text style={s.totalsLabel}>Diskon ({data.discountPercent}%)</Text>
+                  <Text style={s.totalsValue}>-{formatCurrency(totals.discount)}</Text>
+                </View>
+              )}
+              {data.taxRate > 0 && (
+                <View style={s.totalsRow}>
+                  <Text style={s.totalsLabel}>Pajak ({data.taxRate}%)</Text>
+                  <Text style={s.totalsValue}>{formatCurrency(totals.tax)}</Text>
+                </View>
+              )}
+            </View>
+
+            {(data.paymentBankName || data.paymentBankAccount) ? (
+              <View style={s.receiptDivider}>
+                <Text style={s.paymentTitle}>Detail Pembayaran</Text>
+                {data.paymentBankName ? <Text style={s.paymentText}>Bank: {data.paymentBankName}</Text> : null}
+                {data.paymentBankAccount ? <Text style={s.paymentText}>No. Rekening: {data.paymentBankAccount}</Text> : null}
+                {data.paymentAccountHolder ? <Text style={s.paymentText}>Atas Nama: {data.paymentAccountHolder}</Text> : null}
+              </View>
+            ) : null}
+
+            {data.notes ? (
+              <View style={s.receiptDivider}>
+                <Text style={s.notesTitle}>Catatan</Text>
+                <Text style={s.notesText}>{data.notes}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {data.signature ? (
+            <View style={s.signatureBlock}>
+              <View style={s.signatureInner}>
+                <Text style={s.signatureLabel}>Tanda Tangan Penerbit</Text>
+                <Image src={data.signature} style={s.signatureImage} />
+                {data.senderName ? <Text style={s.signatureName}>{data.senderName}</Text> : null}
+              </View>
+            </View>
+          ) : null}
+
+          <Text style={s.footer}>Kwitansi dibuat dengan SwiftInvoice • {data.invoiceNumber}</Text>
+        </Page>
+      </Document>
+    );
+  }
 
   return (
     <Document>
       <Page size="A4" style={s.page}>
+        {paidStamp ? (
+          <>
+            <View style={s.paidWatermarkCircleWrap}>
+              <View style={s.paidWatermarkCircle} />
+            </View>
+            <Text style={s.paidWatermarkText}>LUNAS</Text>
+          </>
+        ) : null}
+
         {/* ── Header ── */}
         <View style={s.headerRow}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View>
+            <Text style={s.invoiceTitle}>INVOICE</Text>
+            <Text style={s.metaText}>No. Invoice: {data.invoiceNumber}</Text>
+            <Text style={s.metaText}>Tanggal: {data.invoiceDate}</Text>
+            {data.dueDate && <Text style={s.metaText}>Jatuh tempo: {data.dueDate}</Text>}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
             {data.senderLogo ? (
               <Image src={data.senderLogo} style={s.logo} />
             ) : null}
             {data.senderBusiness ? <Text style={s.brandName}>{data.senderBusiness}</Text> : null}
-          </View>
-          <View>
-            <Text style={s.invoiceTitle}>INVOICE</Text>
-            <Text style={s.metaText}>{data.invoiceNumber}</Text>
-            <Text style={s.metaText}>Tanggal: {data.invoiceDate}</Text>
-            {data.dueDate && <Text style={s.metaText}>Jatuh tempo: {data.dueDate}</Text>}
           </View>
         </View>
 
@@ -194,7 +376,7 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
 
         {/* ── Footer ── */}
         <Text style={s.footer}>
-          Dibuat dengan SwiftInvoice • {data.invoiceNumber}
+          Invoice dibuat dengan SwiftInvoice • {data.invoiceNumber}
         </Text>
       </Page>
     </Document>

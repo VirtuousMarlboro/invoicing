@@ -4,6 +4,7 @@ import React, { Suspense, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { pdf } from "@react-pdf/renderer";
 import {
   type InvoiceData,
   type LineItem,
@@ -16,6 +17,9 @@ import {
 import LogoUpload from "@/components/LogoUpload";
 import SignatureUpload from "@/components/SignatureUpload";
 import ThemeToggle from "@/components/ThemeToggle";
+import { InvoicePDF } from "@/lib/pdf-template";
+import AppToast, { type ToastMessage } from "@/components/AppToast";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const PDFDownloadButton = dynamic(() => import("@/components/PDFDownloadButton"), { ssr: false });
 const PDFPreview = dynamic(() => import("@/components/PDFPreview"), { ssr: false });
@@ -29,6 +33,14 @@ interface SenderProfile {
 }
 interface SavedClient { id: number; name: string; address: string; email: string; }
 interface SavedProduct { id: number; name: string; price: number; }
+type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+
+const STATUS_OPTIONS: Array<{ value: InvoiceStatus; label: string }> = [
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Terkirim" },
+  { value: "paid", label: "Lunas" },
+  { value: "overdue", label: "Jatuh Tempo" },
+];
 
 /* ─────────────────────── helpers ─────────────────────── */
 
@@ -67,11 +79,30 @@ function HomePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [autoNumber, setAutoNumber] = useState(true);
+  const [savingProductItemIds, setSavingProductItemIds] = useState<string[]>([]);
+  const [hiddenProductItemIds, setHiddenProductItemIds] = useState<string[]>([]);
+  const [generatingNota, setGeneratingNota] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [showSaveProfileModal, setShowSaveProfileModal] = useState(false);
+  const [profileDraftName, setProfileDraftName] = useState("");
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Saved data
   const [profiles, setProfiles] = useState<SenderProfile[]>([]);
   const [clients, setClients] = useState<SavedClient[]>([]);
   const [products, setProducts] = useState<SavedProduct[]>([]);
+
+  const pushToast = useCallback((toast: Omit<ToastMessage, "id">) => {
+    const id = Math.random().toString(36).slice(2, 9);
+    setToasts((prev) => [...prev, { id, ...toast }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   // Load saved data + invoice
   useEffect(() => {
@@ -127,30 +158,77 @@ function HomePage() {
 
   const removeItem = useCallback(
     (id: string) => {
-      setInv((prev) => ({ ...prev, items: prev.items.filter((i) => i.id !== id) }));
+      setInv((prev) => {
+        const idx = prev.items.findIndex((i) => i.id === id);
+        if (idx === -1) return prev;
+        if (prev.items.length <= 1) {
+          pushToast({ kind: "info", text: "Minimal harus ada 1 item." });
+          return prev;
+        }
+        const removed = prev.items[idx];
+        pushToast({
+          kind: "info",
+          text: "Item dihapus.",
+          actionLabel: "Undo",
+          onAction: () => {
+            setInv((current) => {
+              const nextItems = [...current.items];
+              nextItems.splice(idx, 0, removed);
+              return { ...current, items: nextItems };
+            });
+          },
+        });
+        return { ...prev, items: prev.items.filter((i) => i.id !== id) };
+      });
       setSaved(false);
     },
-    [],
+    [pushToast],
   );
 
   // ── Profile functions ──
-  async function saveProfile() {
-    const name = prompt("Nama profil:");
-    if (!name?.trim()) return;
-    const res = await fetch("/api/profiles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        business: inv.senderBusiness, senderName: inv.senderName,
-        address: inv.senderAddress, email: inv.senderEmail,
-        phone: inv.senderPhone, logo: inv.senderLogo,
-        bankName: inv.paymentBankName, bankAccount: inv.paymentBankAccount,
-        accountHolder: inv.paymentAccountHolder,
-      }),
-    });
-    const profile = await res.json();
-    setProfiles((prev) => [profile, ...prev]);
+  function openSaveProfileModal() {
+    const fallbackName = inv.senderBusiness.trim() || inv.senderName.trim() || "Profil Pengirim";
+    setProfileDraftName(fallbackName);
+    setShowSaveProfileModal(true);
+  }
+
+  async function confirmSaveProfile() {
+    try {
+      const name = profileDraftName.trim();
+      if (!name) {
+        pushToast({ kind: "error", text: "Nama profil wajib diisi." });
+        return;
+      }
+
+      const res = await fetch("/api/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          business: inv.senderBusiness,
+          senderName: inv.senderName,
+          address: inv.senderAddress,
+          email: inv.senderEmail,
+          phone: inv.senderPhone,
+          logo: inv.senderLogo,
+          bankName: inv.paymentBankName,
+          bankAccount: inv.paymentBankAccount,
+          accountHolder: inv.paymentAccountHolder,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Gagal menyimpan profil");
+      }
+
+      const profile = await res.json();
+      setProfiles((prev) => [profile, ...prev]);
+      pushToast({ kind: "success", text: "Profil pengirim tersimpan." });
+      setShowSaveProfileModal(false);
+    } catch {
+      pushToast({ kind: "error", text: "Gagal menyimpan profil pengirim." });
+    }
   }
 
   function loadProfile(id: number) {
@@ -169,14 +247,33 @@ function HomePage() {
 
   // ── Client functions ──
   async function saveClientData() {
-    if (!inv.clientName.trim()) return;
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: inv.clientName, address: inv.clientAddress, email: inv.clientEmail }),
-    });
-    const client = await res.json();
-    setClients((prev) => [client, ...prev]);
+    try {
+      if (!inv.clientName.trim()) {
+        pushToast({ kind: "error", text: "Nama klien wajib diisi." });
+        return;
+      }
+
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: inv.clientName,
+          address: inv.clientAddress,
+          email: inv.clientEmail,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Gagal menyimpan klien");
+      }
+
+      const client = await res.json();
+      setClients((prev) => [client, ...prev]);
+      pushToast({ kind: "success", text: "Klien tersimpan." });
+    } catch {
+      pushToast({ kind: "error", text: "Gagal menyimpan klien." });
+    }
   }
 
   function loadClient(id: number) {
@@ -199,18 +296,67 @@ function HomePage() {
   }
 
   async function saveAsProduct(item: LineItem) {
-    if (!item.description.trim()) return;
-    const res = await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: item.description, price: item.unitPrice }),
-    });
-    const product = await res.json();
-    setProducts((prev) => [product, ...prev]);
+    const name = item.description.trim();
+    if (!name) return;
+
+    const isHidden = hiddenProductItemIds.includes(item.id);
+    const isSaving = savingProductItemIds.includes(item.id);
+    if (isHidden || isSaving) return;
+
+    const alreadyExists = products.some(
+      (p) => p.name.trim().toLowerCase() === name.toLowerCase() && Number(p.price) === Number(item.unitPrice),
+    );
+    if (alreadyExists) {
+      setHiddenProductItemIds((prev) => [...prev, item.id]);
+      return;
+    }
+
+    setSavingProductItemIds((prev) => [...prev, item.id]);
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, price: item.unitPrice }),
+      });
+      if (!res.ok) throw new Error("Gagal simpan produk");
+
+      const product = await res.json();
+      setProducts((prev) => {
+        const existsById = prev.some((p) => p.id === product.id);
+        if (existsById) return prev;
+        return [product, ...prev];
+      });
+      // Hide chip after successful click so it can't be saved repeatedly.
+      setHiddenProductItemIds((prev) => [...prev, item.id]);
+    } finally {
+      setSavingProductItemIds((prev) => prev.filter((id) => id !== item.id));
+    }
   }
 
   // Save to DB
   async function handleSave() {
+    const dueDateInvalid = Boolean(
+      inv.invoiceDate && inv.dueDate && new Date(inv.dueDate).getTime() < new Date(inv.invoiceDate).getTime(),
+    );
+    const hasValidClient = inv.clientName.trim().length > 0;
+    const hasValidItem = inv.items.some((i) => i.description.trim().length > 0);
+    if (!inv.invoiceNumber.trim()) {
+      pushToast({ kind: "error", text: "Nomor invoice wajib diisi." });
+      return;
+    }
+    if (!hasValidClient) {
+      pushToast({ kind: "error", text: "Nama klien wajib diisi." });
+      return;
+    }
+    if (!hasValidItem) {
+      pushToast({ kind: "error", text: "Minimal satu item harus memiliki deskripsi." });
+      return;
+    }
+    if (dueDateInvalid) {
+      pushToast({ kind: "error", text: "Tanggal jatuh tempo tidak boleh lebih awal dari tanggal invoice." });
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch("/api/invoices", {
@@ -225,25 +371,94 @@ function HomePage() {
         window.history.replaceState(null, "", `/?id=${data.id}`);
       }
       setSaved(true);
+      pushToast({ kind: "success", text: "Invoice berhasil disimpan." });
       setTimeout(() => setSaved(false), 2000);
+    } catch {
+      pushToast({ kind: "error", text: "Gagal menyimpan invoice." });
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleAutoNotaAndDownload() {
+    setGeneratingNota(true);
+    try {
+      const blob = await pdf(<InvoicePDF data={inv} mode="receipt" />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kwitansi-${inv.invoiceNumber || "nota"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setGeneratingNota(false);
+    }
+  }
+
+  // Keyboard shortcuts: Ctrl+S save, Ctrl+Shift+P preview, Ctrl+Enter quick nota download.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "p") {
+        e.preventDefault();
+        setShowPreview((p) => !p);
+      }
+      if ((e.ctrlKey || e.metaKey) && key === "enter") {
+        e.preventDefault();
+        handleAutoNotaAndDownload();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleAutoNotaAndDownload, handleSave]);
+
   // New invoice
-  function handleNew() {
+  function startNewInvoice() {
     fetch("/api/invoices/next-number")
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then(({ invoiceNumber }) => {
         const fresh = defaultInvoice();
         fresh.invoiceNumber = invoiceNumber;
         setInv(fresh);
+        setSavingProductItemIds([]);
+        setHiddenProductItemIds([]);
+        setShowPreview(false);
         window.history.replaceState(null, "", "/");
         setSaved(false);
       })
       .catch(() => {});
   }
+
+  function handleNew() {
+    if (hasUnsavedDraft) {
+      setShowDiscardDialog(true);
+      return;
+    }
+    startNewInvoice();
+  }
+
+  const hasUnsavedDraft =
+    !saved &&
+    (Boolean(inv.id) ||
+      inv.clientName.trim().length > 0 ||
+      inv.notes.trim().length > 0 ||
+      inv.items.some((i) => i.description.trim().length > 0));
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!hasUnsavedDraft) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedDraft]);
 
   const totals = calcTotals(inv.items, inv.taxRate, inv.discountPercent);
 
@@ -260,9 +475,15 @@ function HomePage() {
           <Link href="/dashboard" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
             Dashboard
           </Link>
+          <Link href="/manage" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
+            Manage
+          </Link>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <ThemeToggle />
+          <span className="text-[11px] text-gray-400 dark:text-gray-500 hidden md:inline">
+            Shortcut: Ctrl+S Simpan • Ctrl+Shift+P Preview • Ctrl+Enter Nota
+          </span>
           <button
             type="button"
             onClick={handleNew}
@@ -277,6 +498,14 @@ function HomePage() {
             className="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer transition-colors"
           >
             {saving ? "Menyimpan…" : saved ? "✓ Tersimpan" : "Simpan"}
+          </button>
+          <button
+            type="button"
+            onClick={handleAutoNotaAndDownload}
+            disabled={generatingNota}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 cursor-pointer transition-colors"
+          >
+            {generatingNota ? "Membuat Nota..." : "Nota Otomatis + Download PDF"}
           </button>
           {inv.id && (
             <button
@@ -298,9 +527,9 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto flex gap-6">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6">
         {/* ── Form Column ── */}
-        <div className={`${showPreview ? "w-1/2" : "w-full max-w-5xl mx-auto"} bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6 md:p-10 space-y-10 transition-all`}>
+        <div className={`${showPreview ? "w-full lg:w-1/2" : "w-full max-w-5xl mx-auto"} bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6 md:p-10 space-y-10 transition-all`}>
 
           {/* ── Invoice Meta ── */}
           <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -336,6 +565,9 @@ function HomePage() {
             <Input label="Tanggal" type="date" value={inv.invoiceDate} onChange={(v) => set("invoiceDate", v)} />
             <Input label="Jatuh Tempo" type="date" value={inv.dueDate} onChange={(v) => set("dueDate", v)} />
           </section>
+          {inv.invoiceDate && inv.dueDate && new Date(inv.dueDate).getTime() < new Date(inv.invoiceDate).getTime() && (
+            <p className="text-xs text-red-500 -mt-7">Jatuh tempo tidak boleh lebih awal dari tanggal invoice.</p>
+          )}
 
           {/* ── Parties ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -349,7 +581,7 @@ function HomePage() {
                       {profiles.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
                     </select>
                   )}
-                  <button type="button" onClick={saveProfile} className="text-[10px] text-blue-500 hover:underline cursor-pointer whitespace-nowrap">Simpan Profil</button>
+                  <button type="button" onClick={openSaveProfileModal} className="text-[10px] text-blue-500 hover:underline cursor-pointer whitespace-nowrap">Simpan Profil</button>
                 </div>
               </div>
               <LogoUpload value={inv.senderLogo} onChange={(v) => set("senderLogo", v)} />
@@ -394,12 +626,14 @@ function HomePage() {
             <div className="space-y-2">
               {inv.items.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 md:grid-cols-[1fr_70px_120px_80px_120px_36px] gap-2 items-center bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2">
+                  <span className="md:hidden text-[11px] text-gray-500 dark:text-gray-400">Deskripsi</span>
                   <input
                     className="input"
                     placeholder="Deskripsi item…"
                     value={item.description}
                     onChange={(e) => setItemField(item.id, "description", e.target.value)}
                   />
+                  <span className="md:hidden text-[11px] text-gray-500 dark:text-gray-400">Qty</span>
                   <input
                     className="input text-center"
                     type="number"
@@ -408,6 +642,7 @@ function HomePage() {
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setItemField(item.id, "quantity", e.target.value)}
                   />
+                  <span className="md:hidden text-[11px] text-gray-500 dark:text-gray-400">Harga Satuan</span>
                   <input
                     className="input text-right"
                     type="number"
@@ -416,6 +651,7 @@ function HomePage() {
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setItemField(item.id, "unitPrice", e.target.value)}
                   />
+                  <span className="md:hidden text-[11px] text-gray-500 dark:text-gray-400">Diskon (%)</span>
                   <input
                     className="input text-center"
                     type="number"
@@ -425,6 +661,7 @@ function HomePage() {
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setItemField(item.id, "discount", e.target.value)}
                   />
+                  <span className="md:hidden text-[11px] text-gray-500 dark:text-gray-400">Jumlah</span>
                   <span className="text-right text-sm font-medium pr-1">{formatCurrency(item.amount)}</span>
                   <button
                     type="button"
@@ -461,6 +698,30 @@ function HomePage() {
             </div>
           </section>
 
+          {/* ── Status ── */}
+          <section>
+            <h2 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Status Invoice</h2>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map((s) => {
+                const active = inv.status === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => set("status", s.value)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                      active
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           {/* ── Tax, Discount, Notes ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
@@ -488,39 +749,47 @@ function HomePage() {
             </div>
           </div>
 
-          {/* ── Payment Info ── */}
-          <section>
-            <h2 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Informasi Pembayaran</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input label="Nama Bank" value={inv.paymentBankName} onChange={(v) => set("paymentBankName", v)} />
-              <Input label="Nomor Rekening" value={inv.paymentBankAccount} onChange={(v) => set("paymentBankAccount", v)} />
-              <Input label="Atas Nama" value={inv.paymentAccountHolder} onChange={(v) => set("paymentAccountHolder", v)} />
+          <details className="rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-900/30 p-4">
+            <summary className="cursor-pointer text-xs font-semibold text-blue-600 uppercase tracking-wider">
+              Bagian Tambahan (Pembayaran, Tanda Tangan, Simpan Item)
+            </summary>
+            <div className="mt-4 space-y-6">
+              {/* ── Payment Info ── */}
+              <section>
+                <h2 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Informasi Pembayaran</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Input label="Nama Bank" value={inv.paymentBankName} onChange={(v) => set("paymentBankName", v)} />
+                  <Input label="Nomor Rekening" value={inv.paymentBankAccount} onChange={(v) => set("paymentBankAccount", v)} />
+                  <Input label="Atas Nama" value={inv.paymentAccountHolder} onChange={(v) => set("paymentAccountHolder", v)} />
+                </div>
+              </section>
+
+              {/* ── Signature ── */}
+              <SignatureUpload value={inv.signature} onChange={(v) => set("signature", v)} />
+
+              {/* ── Save Items as Products ── */}
+              {inv.items.some((i) => i.description.trim() && !hiddenProductItemIds.includes(i.id)) && (
+                <section>
+                  <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Simpan Item Sebagai Produk</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {inv.items.filter((i) => i.description.trim() && !hiddenProductItemIds.includes(i.id)).map((item) => (
+                      <button key={item.id} type="button" onClick={() => saveAsProduct(item)}
+                        disabled={savingProductItemIds.includes(item.id)}
+                        className="text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                      >
+                        {savingProductItemIds.includes(item.id) ? "Menyimpan..." : `+ ${item.description}`}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
-          </section>
-
-          {/* ── Signature ── */}
-          <SignatureUpload value={inv.signature} onChange={(v) => set("signature", v)} />
-
-          {/* ── Save Items as Products ── */}
-          {inv.items.some((i) => i.description.trim()) && (
-            <section>
-              <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Simpan Item Sebagai Produk</h2>
-              <div className="flex flex-wrap gap-2">
-                {inv.items.filter((i) => i.description.trim()).map((item) => (
-                  <button key={item.id} type="button" onClick={() => saveAsProduct(item)}
-                    className="text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                  >
-                    + {item.description}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+          </details>
         </div>
 
         {/* ── PDF Preview Column ── */}
         {showPreview && (
-          <div className="w-1/2 sticky top-8 h-[calc(100vh-4rem)]">
+          <div className="w-full lg:w-1/2 lg:sticky lg:top-8 h-[480px] lg:h-[calc(100vh-4rem)]">
             <PDFPreview data={inv} />
           </div>
         )}
@@ -535,6 +804,43 @@ function HomePage() {
           onClose={() => setShowEmailModal(false)}
         />
       )}
+      {showSaveProfileModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowSaveProfileModal(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">Simpan Profil Pengirim</h2>
+            <Input label="Nama Profil" value={profileDraftName} onChange={setProfileDraftName} />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSaveProfileModal(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmSaveProfile}
+                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ConfirmDialog
+        open={showDiscardDialog}
+        title="Buat Invoice Baru"
+        message="Perubahan yang belum disimpan akan hilang. Lanjutkan?"
+        confirmLabel="Lanjut"
+        confirmVariant="primary"
+        onCancel={() => setShowDiscardDialog(false)}
+        onConfirm={() => {
+          setShowDiscardDialog(false);
+          startNewInvoice();
+        }}
+      />
+      <AppToast toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }
