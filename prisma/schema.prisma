@@ -1,0 +1,191 @@
+// ============================================================
+// SwiftInvoice — Prisma Schema
+// Database: PostgreSQL (Supabase)
+// Konvensi: snake_case columns, UUID primary keys, BIGINT money
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────── ENUMS ────────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum DiscountType {
+  FLAT
+  PERCENTAGE
+}
+
+enum PaymentMethod {
+  GATEWAY
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+// ──────────────────────────── USERS ────────────────────────────
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String    @map("password_hash") @db.VarChar(255)
+  fullName        String    @map("full_name") @db.VarChar(150)
+  businessName    String?   @map("business_name") @db.VarChar(200)
+  businessAddress String?   @map("business_address") @db.Text
+  phone           String?   @db.VarChar(30)
+  logoUrl         String?   @map("logo_url") @db.VarChar(500)
+  defaultTaxRate  Int       @default(0) @map("default_tax_rate") // basis points: 1100 = 11.00%
+  defaultCurrency String    @default("IDR") @map("default_currency") @db.VarChar(3)
+  invoicePrefix   String    @default("INV") @map("invoice_prefix") @db.VarChar(10)
+  invoiceCounter  Int       @default(0) @map("invoice_counter")
+  themeColor      String    @default("#2563EB") @map("theme_color") @db.VarChar(7)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz()
+
+  clients  Client[]
+  products Product[]
+  invoices Invoice[]
+
+  @@map("users")
+}
+
+// ──────────────────────────── CLIENTS ──────────────────────────
+
+model Client {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  name      String    @db.VarChar(200)
+  email     String?   @db.VarChar(255)
+  phone     String?   @db.VarChar(30)
+  address   String?   @db.Text
+  city      String?   @db.VarChar(100)
+  country   String    @default("ID") @db.VarChar(2) // ISO 3166-1 alpha-2
+  notes     String?   @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([userId])
+  @@map("clients")
+}
+
+// ──────────────────────────── PRODUCTS ─────────────────────────
+
+model Product {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  name        String    @db.VarChar(200)
+  description String?   @db.Text
+  unitPrice   BigInt    @map("unit_price") // harga dalam sen
+  unit        String    @default("unit") @db.VarChar(30)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lineItems LineItem[]
+
+  @@index([userId])
+  @@map("products")
+}
+
+// ──────────────────────────── INVOICES ─────────────────────────
+
+model Invoice {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  clientId      String        @map("client_id") @db.Uuid
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(50)
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime      @map("issue_date") @db.Date
+  dueDate       DateTime      @map("due_date") @db.Date
+  currency      String        @default("IDR") @db.VarChar(3)
+
+  // ── Nilai moneter (semua dalam sen, BIGINT) ──
+  subtotal      BigInt        @default(0)
+  discountType  DiscountType  @default(FLAT) @map("discount_type")
+  discountValue BigInt        @default(0) @map("discount_value") // FLAT=sen, PERCENTAGE=bps
+  discountTotal BigInt        @default(0) @map("discount_total")
+  taxRate       Int           @default(0) @map("tax_rate") // basis points
+  taxTotal      BigInt        @default(0) @map("tax_total")
+  grandTotal    BigInt        @default(0) @map("grand_total")
+  amountPaid    BigInt        @default(0) @map("amount_paid")
+
+  // ── Metadata ──
+  notes         String?       @db.Text
+  terms         String?       @db.Text
+  publicToken   String?       @unique @map("public_token") @db.VarChar(64)
+  sentAt        DateTime?     @map("sent_at") @db.Timestamptz()
+  paidAt        DateTime?     @map("paid_at") @db.Timestamptz()
+  pdfUrl        String?       @map("pdf_url") @db.VarChar(500)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz()
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  lineItems LineItem[]
+  payments  Payment[]
+
+  @@index([userId, status])
+  @@index([clientId])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// ──────────────────────────── LINE ITEMS ───────────────────────
+
+model LineItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId   String  @map("invoice_id") @db.Uuid
+  productId   String? @map("product_id") @db.Uuid
+  description String  @db.VarChar(500)
+  quantity    Decimal @db.Decimal(12, 4) // mendukung 2.5 jam, dsb.
+  unitPrice   BigInt  @map("unit_price") // sen
+  amount      BigInt  // quantity × unitPrice, rounded
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("line_items")
+}
+
+// ──────────────────────────── PAYMENTS ─────────────────────────
+
+model Payment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId       String        @map("invoice_id") @db.Uuid
+  amount          BigInt        // sen
+  method          PaymentMethod
+  gatewayProvider String?       @map("gateway_provider") @db.VarChar(30)
+  gatewayTxId     String?       @map("gateway_tx_id") @db.VarChar(200)
+  gatewayStatus   String?       @map("gateway_status") @db.VarChar(50)
+  gatewayRaw      Json?         @map("gateway_raw") @db.JsonB
+  notes           String?       @db.VarChar(500)
+  paidAt          DateTime      @map("paid_at") @db.Timestamptz()
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+  @@index([gatewayTxId])
+  @@map("payments")
+}
