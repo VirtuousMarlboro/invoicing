@@ -1,4 +1,4 @@
-cleexport interface LineItem {
+export interface LineItem {
   id: string;
   description: string;
   quantity: number;
