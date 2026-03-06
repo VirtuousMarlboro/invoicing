@@ -109,9 +109,17 @@ const s = StyleSheet.create({
   receiptDivider: { borderTopWidth: 0.5, borderTopColor: "#e5e7eb", marginTop: 12, paddingTop: 10 },
 
   // Watermark
+  paidWatermarkLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   paidWatermarkText: {
     position: "absolute",
-    top: "43%",
     left: 0,
     right: 0,
     textAlign: "center",
@@ -121,13 +129,6 @@ const s = StyleSheet.create({
     opacity: 0.18,
     transform: "rotate(-24deg)",
     letterSpacing: 2,
-  },
-  paidWatermarkCircleWrap: {
-    position: "absolute",
-    top: "36%",
-    left: 0,
-    right: 0,
-    alignItems: "center",
   },
   paidWatermarkCircle: {
     width: 260,
@@ -149,15 +150,6 @@ export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode
     return (
       <Document>
         <Page size="A4" style={s.page}>
-          {paidStamp ? (
-            <>
-              <View style={s.paidWatermarkCircleWrap}>
-                <View style={s.paidWatermarkCircle} />
-              </View>
-              <Text style={s.paidWatermarkText}>LUNAS</Text>
-            </>
-          ) : null}
-
           {/* Receipt header */}
           <View style={s.headerRow}>
             <View>
@@ -250,6 +242,14 @@ export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode
             </View>
           ) : null}
 
+          {/* Draw paid stamp last so it stays above receipt content. */}
+          {paidStamp ? (
+            <View style={s.paidWatermarkLayer}>
+                <View style={s.paidWatermarkCircle} />
+              <Text style={s.paidWatermarkText}>LUNAS</Text>
+            </View>
+          ) : null}
+
           <Text style={s.footer}>Kwitansi dibuat dengan SwiftInvoice • {data.invoiceNumber}</Text>
         </Page>
       </Document>
@@ -260,12 +260,10 @@ export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode
     <Document>
       <Page size="A4" style={s.page}>
         {paidStamp ? (
-          <>
-            <View style={s.paidWatermarkCircleWrap}>
+          <View style={s.paidWatermarkLayer}>
               <View style={s.paidWatermarkCircle} />
-            </View>
             <Text style={s.paidWatermarkText}>LUNAS</Text>
-          </>
+          </View>
         ) : null}
 
         {/* ── Header ── */}
