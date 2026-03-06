@@ -3,6 +3,7 @@ export interface LineItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  discount: number;
   amount: number;
 }
 
@@ -41,10 +42,17 @@ export interface InvoiceData {
 
   // Status
   status: string;
+
+  // Payment info
+  paymentBankName: string;
+  paymentBankAccount: string;
+  paymentAccountHolder: string;
 }
 
-export function calcLineAmount(quantity: number, unitPrice: number): number {
-  return Math.round(quantity * unitPrice * 100) / 100;
+export function calcLineAmount(quantity: number, unitPrice: number, discount: number = 0): number {
+  const gross = quantity * unitPrice;
+  const disc = Math.round(gross * discount) / 100;
+  return Math.round((gross - disc) * 100) / 100;
 }
 
 export function calcSubtotal(items: LineItem[]): number {
@@ -100,11 +108,14 @@ export function defaultInvoice(): InvoiceData {
     invoiceNumber: "",
     invoiceDate: todayString(),
     dueDate: "",
-    items: [{ id: generateId(), description: "", quantity: 1, unitPrice: 0, amount: 0 }],
+    items: [{ id: generateId(), description: "", quantity: 1, unitPrice: 0, discount: 0, amount: 0 }],
     notes: "",
     taxRate: 11,
     discountPercent: 0,
     signature: "",
     status: "draft",
+    paymentBankName: "",
+    paymentBankAccount: "",
+    paymentAccountHolder: "",
   };
 }

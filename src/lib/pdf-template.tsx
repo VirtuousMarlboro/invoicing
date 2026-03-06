@@ -40,10 +40,11 @@ const s = StyleSheet.create({
   tableHeader: { flexDirection: "row", backgroundColor: blue, color: "#fff", padding: 6, borderRadius: 2 },
   tableRow: { flexDirection: "row", padding: 6, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   tableRowAlt: { backgroundColor: lightGray },
-  colDesc: { width: "45%", fontSize: 9 },
-  colQty: { width: "15%", fontSize: 9, textAlign: "center" },
+  colDesc: { width: "35%", fontSize: 9 },
+  colQty: { width: "10%", fontSize: 9, textAlign: "center" },
   colPrice: { width: "20%", fontSize: 9, textAlign: "right" },
-  colAmount: { width: "20%", fontSize: 9, textAlign: "right" },
+  colDisc: { width: "10%", fontSize: 9, textAlign: "center" },
+  colAmount: { width: "25%", fontSize: 9, textAlign: "right" },
   colHeaderText: { fontSize: 9, fontWeight: "bold", color: "#fff" },
 
   // Totals
@@ -72,6 +73,11 @@ const s = StyleSheet.create({
   signatureLabel: { fontSize: 8, color: gray, marginBottom: 4 },
   signatureImage: { width: 120, height: 50, objectFit: "contain" as const },
   signatureName: { fontSize: 9, fontWeight: "bold", marginTop: 4, borderTopWidth: 0.5, borderTopColor: gray, paddingTop: 4, minWidth: 120, textAlign: "center" as const },
+
+  // Payment info
+  paymentBlock: { marginTop: 24, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: "#e5e7eb" },
+  paymentTitle: { fontSize: 9, fontWeight: "bold", color: blue, marginBottom: 4 },
+  paymentText: { fontSize: 9, color: gray, lineHeight: 1.5 },
 });
 
 export function InvoicePDF({ data }: { data: InvoiceData }) {
@@ -118,6 +124,7 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
           <Text style={[s.colDesc, s.colHeaderText]}>Deskripsi</Text>
           <Text style={[s.colQty, s.colHeaderText]}>Qty</Text>
           <Text style={[s.colPrice, s.colHeaderText]}>Harga Satuan</Text>
+          <Text style={[s.colDisc, s.colHeaderText]}>Diskon</Text>
           <Text style={[s.colAmount, s.colHeaderText]}>Jumlah</Text>
         </View>
 
@@ -127,6 +134,7 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
             <Text style={s.colDesc}>{item.description || "-"}</Text>
             <Text style={s.colQty}>{item.quantity}</Text>
             <Text style={s.colPrice}>{formatCurrency(item.unitPrice)}</Text>
+            <Text style={s.colDisc}>{(item.discount || 0) > 0 ? `${item.discount}%` : "-"}</Text>
             <Text style={s.colAmount}>{formatCurrency(item.amount)}</Text>
           </View>
         ))}
@@ -162,6 +170,16 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
             <Text style={s.notesText}>{data.notes}</Text>
           </View>
         )}
+
+        {/* ── Payment Info ── */}
+        {(data.paymentBankName || data.paymentBankAccount) ? (
+          <View style={s.paymentBlock}>
+            <Text style={s.paymentTitle}>Informasi Pembayaran</Text>
+            {data.paymentBankName ? <Text style={s.paymentText}>Bank: {data.paymentBankName}</Text> : null}
+            {data.paymentBankAccount ? <Text style={s.paymentText}>No. Rekening: {data.paymentBankAccount}</Text> : null}
+            {data.paymentAccountHolder ? <Text style={s.paymentText}>Atas Nama: {data.paymentAccountHolder}</Text> : null}
+          </View>
+        ) : null}
 
         {/* ── Signature ── */}
         {data.signature ? (

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface InvoiceSummary {
   id: number;
@@ -19,8 +20,9 @@ export default function HistoryPage() {
 
   useEffect(() => {
     fetch("/api/invoices")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then(setInvoices)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,17 +36,28 @@ export default function HistoryPage() {
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n);
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4 md:px-8">
+    <main className="min-h-screen py-8 px-4 md:px-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-blue-600">Riwayat Invoice</h1>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            + Buat Baru
-          </Link>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-blue-600">Riwayat Invoice</h1>
+            <Link href="/" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
+              Buat Invoice
+            </Link>
+            <Link href="/dashboard" className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
+              Dashboard
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              + Buat Baru
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -57,10 +70,10 @@ export default function HistoryPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="bg-gray-50 dark:bg-slate-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <th className="px-6 py-3">No. Invoice</th>
                   <th className="px-6 py-3">Tanggal</th>
                   <th className="px-6 py-3">Klien</th>
@@ -69,15 +82,15 @@ export default function HistoryPage() {
                   <th className="px-6 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={inv.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                     <td className="px-6 py-4 font-medium">
                       <Link href={`/?id=${inv.id}`} className="text-blue-600 hover:underline">
                         {inv.invoiceNumber}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 text-gray-500">{inv.invoiceDate}</td>
+                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{inv.invoiceDate}</td>
                     <td className="px-6 py-4">{inv.clientName || <span className="text-gray-300">—</span>}</td>
                     <td className="px-6 py-4 font-medium">{fmt(inv.grandTotal)}</td>
                     <td className="px-6 py-4">

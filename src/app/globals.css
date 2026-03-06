@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
@@ -16,10 +18,28 @@ body {
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   outline: none;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 .input:focus {
   box-shadow: 0 0 0 2px var(--accent);
+}
+
+html.dark .input {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html.dark textarea {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html.dark select {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
 }
 
 @media print {

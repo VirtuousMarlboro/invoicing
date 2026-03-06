@@ -47,6 +47,9 @@ export async function POST(req: Request) {
     signature: String(body.signature || ""),
     status: String(body.status || "draft"),
     grandTotal: totals.grandTotal,
+    paymentBankName: String(body.paymentBankName || ""),
+    paymentBankAccount: String(body.paymentBankAccount || ""),
+    paymentAccountHolder: String(body.paymentAccountHolder || ""),
   };
 
   if (body.id) {

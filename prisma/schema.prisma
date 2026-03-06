@@ -8,26 +8,59 @@ datasource db {
 }
 
 model Invoice {
-  id              Int      @id @default(autoincrement())
-  invoiceNumber   String   @unique
-  invoiceDate     String
-  dueDate         String   @default("")
-  senderBusiness  String   @default("")
-  senderName      String   @default("")
-  senderAddress   String   @default("")
-  senderEmail     String   @default("")
-  senderPhone     String   @default("")
-  senderLogo      String   @default("")
-  clientName      String   @default("")
-  clientAddress   String   @default("")
-  clientEmail     String   @default("")
-  items           String   @default("[]") // JSON array of LineItem
-  notes           String   @default("")
-  taxRate         Float    @default(11)
-  discountPercent Float    @default(0)
-  signature       String   @default("") // base64 data URI
-  status          String   @default("draft") // draft | sent
-  grandTotal      Float    @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                   Int      @id @default(autoincrement())
+  invoiceNumber        String   @unique
+  invoiceDate          String
+  dueDate              String   @default("")
+  senderBusiness       String   @default("")
+  senderName           String   @default("")
+  senderAddress        String   @default("")
+  senderEmail          String   @default("")
+  senderPhone          String   @default("")
+  senderLogo           String   @default("")
+  clientName           String   @default("")
+  clientAddress        String   @default("")
+  clientEmail          String   @default("")
+  items                String   @default("[]") // JSON array of LineItem
+  notes                String   @default("")
+  taxRate              Float    @default(11)
+  discountPercent      Float    @default(0)
+  signature            String   @default("") // base64 data URI
+  status               String   @default("draft") // draft | sent
+  grandTotal           Float    @default(0)
+  paymentBankName      String   @default("")
+  paymentBankAccount   String   @default("")
+  paymentAccountHolder String   @default("")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model SenderProfile {
+  id            Int      @id @default(autoincrement())
+  name          String
+  business      String   @default("")
+  senderName    String   @default("")
+  address       String   @default("")
+  email         String   @default("")
+  phone         String   @default("")
+  logo          String   @default("")
+  bankName      String   @default("")
+  bankAccount   String   @default("")
+  accountHolder String   @default("")
+  createdAt     DateTime @default(now())
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String   @default("")
+  email     String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  price     Float    @default(0)
+  createdAt DateTime @default(now())
 }
