@@ -4,6 +4,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
@@ -61,6 +62,16 @@ const s = StyleSheet.create({
 
   // Footer
   footer: { position: "absolute", bottom: 30, left: 40, right: 40, textAlign: "center", fontSize: 8, color: gray },
+
+  // Logo
+  logo: { width: 60, height: 60, objectFit: "contain" as const },
+
+  // Signature
+  signatureBlock: { marginTop: 30, alignItems: "flex-end" },
+  signatureInner: { alignItems: "center" },
+  signatureLabel: { fontSize: 8, color: gray, marginBottom: 4 },
+  signatureImage: { width: 120, height: 50, objectFit: "contain" as const },
+  signatureName: { fontSize: 9, fontWeight: "bold", marginTop: 4, borderTopWidth: 0.5, borderTopColor: gray, paddingTop: 4, minWidth: 120, textAlign: "center" as const },
 });
 
 export function InvoicePDF({ data }: { data: InvoiceData }) {
@@ -71,8 +82,11 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
       <Page size="A4" style={s.page}>
         {/* ── Header ── */}
         <View style={s.headerRow}>
-          <View>
-            <Text style={s.brandName}>{data.senderName || "Nama Bisnis"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {data.senderLogo ? (
+              <Image src={data.senderLogo} style={s.logo} />
+            ) : null}
+            {data.senderBusiness ? <Text style={s.brandName}>{data.senderBusiness}</Text> : null}
           </View>
           <View>
             <Text style={s.invoiceTitle}>INVOICE</Text>
@@ -148,6 +162,17 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
             <Text style={s.notesText}>{data.notes}</Text>
           </View>
         )}
+
+        {/* ── Signature ── */}
+        {data.signature ? (
+          <View style={s.signatureBlock}>
+            <View style={s.signatureInner}>
+              <Text style={s.signatureLabel}>Tanda Tangan</Text>
+              <Image src={data.signature} style={s.signatureImage} />
+              {data.senderName ? <Text style={s.signatureName}>{data.senderName}</Text> : null}
+            </View>
+          </View>
+        ) : null}
 
         {/* ── Footer ── */}
         <Text style={s.footer}>

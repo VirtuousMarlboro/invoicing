@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Invoice {
+  id              Int      @id @default(autoincrement())
+  invoiceNumber   String   @unique
+  invoiceDate     String
+  dueDate         String   @default("")
+  senderBusiness  String   @default("")
+  senderName      String   @default("")
+  senderAddress   String   @default("")
+  senderEmail     String   @default("")
+  senderPhone     String   @default("")
+  senderLogo      String   @default("")
+  clientName      String   @default("")
+  clientAddress   String   @default("")
+  clientEmail     String   @default("")
+  items           String   @default("[]") // JSON array of LineItem
+  notes           String   @default("")
+  taxRate         Float    @default(11)
+  discountPercent Float    @default(0)
+  signature       String   @default("") // base64 data URI
+  status          String   @default("draft") // draft | sent
+  grandTotal      Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

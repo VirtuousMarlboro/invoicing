@@ -7,7 +7,11 @@ export interface LineItem {
 }
 
 export interface InvoiceData {
+  // DB id (undefined for new invoices)
+  id?: number;
+
   // Pengirim
+  senderBusiness: string;
   senderName: string;
   senderAddress: string;
   senderEmail: string;
@@ -29,8 +33,14 @@ export interface InvoiceData {
 
   // Totals
   notes: string;
-  taxRate: number; // persen, misal 11
-  discountPercent: number; // persen, misal 5
+  taxRate: number;
+  discountPercent: number;
+
+  // Signature (base64 data URI)
+  signature: string;
+
+  // Status
+  status: string;
 }
 
 export function calcLineAmount(quantity: number, unitPrice: number): number {
@@ -78,6 +88,7 @@ export function todayString(): string {
 
 export function defaultInvoice(): InvoiceData {
   return {
+    senderBusiness: "",
     senderName: "",
     senderAddress: "",
     senderEmail: "",
@@ -86,12 +97,14 @@ export function defaultInvoice(): InvoiceData {
     clientName: "",
     clientAddress: "",
     clientEmail: "",
-    invoiceNumber: `INV-${new Date().getFullYear()}-001`,
+    invoiceNumber: "",
     invoiceDate: todayString(),
     dueDate: "",
     items: [{ id: generateId(), description: "", quantity: 1, unitPrice: 0, amount: 0 }],
     notes: "",
     taxRate: 11,
     discountPercent: 0,
+    signature: "",
+    status: "draft",
   };
 }
