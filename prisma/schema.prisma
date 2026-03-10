@@ -25,6 +25,7 @@ model Invoice {
   notes                String   @default("")
   taxRate              Float    @default(11)
   discountPercent      Float    @default(0)
+  roundingAmount       Float    @default(0)
   signature            String   @default("") // base64 data URI
   status               String   @default("draft") // draft | sent
   grandTotal           Float    @default(0)

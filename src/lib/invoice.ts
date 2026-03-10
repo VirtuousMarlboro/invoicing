@@ -36,6 +36,7 @@ export interface InvoiceData {
   notes: string;
   taxRate: number;
   discountPercent: number;
+  roundingAmount: number;
 
   // Signature (base64 data URI)
   signature: string;
@@ -67,14 +68,20 @@ export function calcTax(afterDiscount: number, taxRate: number): number {
   return Math.round(afterDiscount * taxRate) / 100;
 }
 
-export function calcTotals(items: LineItem[], taxRate: number, discountPercent: number) {
+export function calcTotals(
+  items: LineItem[],
+  taxRate: number,
+  discountPercent: number,
+  roundingAmount: number = 0,
+) {
   const subtotal = calcSubtotal(items);
   const discount = calcDiscount(subtotal, discountPercent);
   const afterDiscount = subtotal - discount;
   const tax = calcTax(afterDiscount, taxRate);
-  const grandTotal = afterDiscount + tax;
+  const rounding = Number(roundingAmount) || 0;
+  const grandTotal = afterDiscount + tax + rounding;
 
-  return { subtotal, discount, afterDiscount, tax, grandTotal };
+  return { subtotal, discount, afterDiscount, tax, rounding, grandTotal };
 }
 
 export function formatCurrency(amount: number): string {
@@ -112,6 +119,7 @@ export function defaultInvoice(): InvoiceData {
     notes: "",
     taxRate: 11,
     discountPercent: 0,
+    roundingAmount: 0,
     signature: "",
     status: "draft",
     paymentBankName: "",

@@ -25,7 +25,12 @@ export async function POST(req: Request) {
   const body = await req.json();
 
   const items: LineItem[] = Array.isArray(body.items) ? body.items : [];
-  const totals = calcTotals(items, Number(body.taxRate) || 0, Number(body.discountPercent) || 0);
+  const totals = calcTotals(
+    items,
+    Number(body.taxRate) || 0,
+    Number(body.discountPercent) || 0,
+    Number(body.roundingAmount) || 0,
+  );
 
   const data = {
     invoiceNumber: String(body.invoiceNumber || ""),
@@ -44,6 +49,7 @@ export async function POST(req: Request) {
     notes: String(body.notes || ""),
     taxRate: Number(body.taxRate) || 0,
     discountPercent: Number(body.discountPercent) || 0,
+    roundingAmount: Number(body.roundingAmount) || 0,
     signature: String(body.signature || ""),
     status: String(body.status || "draft"),
     grandTotal: totals.grandTotal,

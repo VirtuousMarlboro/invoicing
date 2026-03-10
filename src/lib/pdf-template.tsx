@@ -143,7 +143,7 @@ const s = StyleSheet.create({
 
 export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode?: "invoice" | "receipt" }) {
   const isReceipt = mode === "receipt";
-  const totals = calcTotals(data.items, data.taxRate, data.discountPercent);
+  const totals = calcTotals(data.items, data.taxRate, data.discountPercent, data.roundingAmount);
   const paidStamp = data.status === "paid";
 
   if (isReceipt) {
@@ -211,6 +211,15 @@ export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode
                 <View style={s.totalsRow}>
                   <Text style={s.totalsLabel}>Pajak ({data.taxRate}%)</Text>
                   <Text style={s.totalsValue}>{formatCurrency(totals.tax)}</Text>
+                </View>
+              )}
+              {data.roundingAmount !== 0 && (
+                <View style={s.totalsRow}>
+                  <Text style={s.totalsLabel}>Pembulatan</Text>
+                  <Text style={s.totalsValue}>
+                    {data.roundingAmount > 0 ? "+" : "-"}
+                    {formatCurrency(Math.abs(data.roundingAmount))}
+                  </Text>
                 </View>
               )}
             </View>
@@ -335,6 +344,15 @@ export function InvoicePDF({ data, mode = "invoice" }: { data: InvoiceData; mode
             <View style={s.totalsRow}>
               <Text style={s.totalsLabel}>Pajak ({data.taxRate}%)</Text>
               <Text style={s.totalsValue}>{formatCurrency(totals.tax)}</Text>
+            </View>
+          )}
+          {data.roundingAmount !== 0 && (
+            <View style={s.totalsRow}>
+              <Text style={s.totalsLabel}>Pembulatan</Text>
+              <Text style={s.totalsValue}>
+                {data.roundingAmount > 0 ? "+" : "-"}
+                {formatCurrency(Math.abs(data.roundingAmount))}
+              </Text>
             </View>
           )}
           <View style={s.grandTotalRow}>

@@ -460,7 +460,7 @@ function HomePage() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [hasUnsavedDraft]);
 
-  const totals = calcTotals(inv.items, inv.taxRate, inv.discountPercent);
+  const totals = calcTotals(inv.items, inv.taxRate, inv.discountPercent, inv.roundingAmount);
 
   /* ─── render ─── */
   return (
@@ -727,6 +727,7 @@ function HomePage() {
             <div className="space-y-3">
               <Input label="Diskon Global (%)" type="number" value={String(inv.discountPercent)} onChange={(v) => set("discountPercent", Math.max(0, Math.min(100, Number(v) || 0)))} />
               <Input label="Pajak (%)" type="number" value={String(inv.taxRate)} onChange={(v) => set("taxRate", Math.max(0, Number(v) || 0))} />
+              <Input label="Pembulatan (Rp)" type="number" value={String(inv.roundingAmount)} onChange={(v) => set("roundingAmount", Number(v) || 0)} />
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Catatan</label>
                 <textarea
@@ -742,6 +743,12 @@ function HomePage() {
               <Row label="Subtotal" value={formatCurrency(totals.subtotal)} />
               {inv.discountPercent > 0 && <Row label={`Diskon (${inv.discountPercent}%)`} value={`-${formatCurrency(totals.discount)}`} />}
               {inv.taxRate > 0 && <Row label={`Pajak (${inv.taxRate}%)`} value={formatCurrency(totals.tax)} />}
+              {inv.roundingAmount !== 0 && (
+                <Row
+                  label="Pembulatan"
+                  value={`${inv.roundingAmount > 0 ? "+" : "-"}${formatCurrency(Math.abs(inv.roundingAmount))}`}
+                />
+              )}
               <div className="w-56 flex justify-between border-t-2 border-blue-600 pt-2 mt-2">
                 <span className="font-bold text-blue-600 text-base">Total</span>
                 <span className="font-bold text-blue-600 text-base">{formatCurrency(totals.grandTotal)}</span>
